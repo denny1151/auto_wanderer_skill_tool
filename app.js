@@ -18,7 +18,7 @@ async function loadBrowserSolver() {
         });
       }
       const runtime = await window.loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.27.7/full/" });
-      const response = await fetch("./solver.py?v=skill-fold-2");
+      const response = await fetch("./solver.py?v=search-limit-1");
       if (!response.ok) throw new Error("無法載入排列搜尋程式。");
       await runtime.runPythonAsync(await response.text());
       return runtime;
@@ -270,12 +270,17 @@ $("#config-file").addEventListener("change", async (event) => {
 $("#solve").addEventListener("click", async () => {
   readForm();
   $("#form-error").textContent = "";
+  const maxNodes = Number($("#search-limit").value);
+  if (!Number.isSafeInteger(maxNodes) || maxNodes < 1) {
+    $("#form-error").textContent = "搜尋節點上限請填正整數。";
+    return;
+  }
   const button = $("#solve"); button.disabled = true; button.textContent = "載入搜尋器…";
   try {
     const runtime = await loadBrowserSolver();
     button.textContent = "搜尋中…";
     const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(config))));
-    const output = await runtime.runPythonAsync(`import base64, json\n_config = json.loads(base64.b64decode("${encoded}"))\njson.dumps(solve(_config), ensure_ascii=False)`);
+    const output = await runtime.runPythonAsync(`import base64, json\n_config = json.loads(base64.b64decode("${encoded}"))\njson.dumps(solve(_config, ${maxNodes}), ensure_ascii=False)`);
     const data = JSON.parse(output);
     clearResult(); showResult(data);
   } catch (error) { $("#form-error").textContent = error.message || `搜尋失敗：${error}`; }

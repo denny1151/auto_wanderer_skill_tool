@@ -61,6 +61,10 @@
 
       <div class="editor-footer">
         <div id="form-error" class="form-error" role="alert" aria-live="polite"></div>
+        <label class="search-limit-field" for="search-limit">搜尋節點上限
+          <input id="search-limit" type="number" min="1" step="1" value="300000" inputmode="numeric" aria-describedby="search-limit-hint">
+          <small id="search-limit-hint">數值越大，搜尋越久；過大可能讓瀏覽器暫時沒有回應。</small>
+        </label>
         <button class="button button-primary button-solve" id="solve" type="button">
           <span class="button-icon">⌕</span> 搜尋最佳排列
         </button>
@@ -104,6 +108,6 @@
     <span>技能可旋轉 90° 倍數，不可翻轉或重疊。每個輔助技能至少一格與主動技能共邊。</span>
   </footer>
 
-  <script src="./app.js?v=skill-fold-2" defer></script>
+  <script src="./app.js?v=search-limit-1" defer></script>
 </body>
 </html>

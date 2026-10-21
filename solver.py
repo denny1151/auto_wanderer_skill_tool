@@ -218,6 +218,7 @@ def solve(config: Any, max_nodes: int = MAX_SEARCH_NODES) -> dict:
     main_pieces, groups = _validate_config(config)
     group_limits = [(group["min"], group["max"]) for group in groups]
     preferred_groups = [index for index, group in enumerate(groups) if group["preferMore"]]
+    preferred_order = {group_index: order for order, group_index in enumerate(preferred_groups)}
     types = []
     for group_index, group in enumerate(groups):
         for piece in group["pieces"]:
@@ -371,7 +372,8 @@ def solve(config: Any, max_nodes: int = MAX_SEARCH_NODES) -> dict:
                     options.append((type_index, placement, border_cells))
             options.sort(key=lambda option: (
                 0 if groups[types[option[0]]["groupIndex"]]["preferMore"] else 1,
-                -types[option[0]]["area"],
+                preferred_order.get(types[option[0]]["groupIndex"], types[option[0]]["groupIndex"]),
+                types[option[0]]["area"] if groups[types[option[0]]["groupIndex"]]["preferMore"] else -types[option[0]]["area"],
                 option[0],
                 option[1].mask,
             ))

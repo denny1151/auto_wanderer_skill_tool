@@ -91,6 +91,10 @@ h3 { margin: 0; font-size: 16px; }
 .button-solve { min-height: 44px; padding: 0 18px; font-size: 14px; }
 .button-icon { font-size: 18px; line-height: 1; }
 .editor-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 20px; }
+.search-limit-field { min-width: 170px; display: grid; gap: 4px; color: #aeb9c6; font-size: 11px; font-weight: 700; }
+.search-limit-field input { width: 100%; min-height: 36px; border: 1px solid #3b4757; border-radius: 8px; padding: 6px 9px; background: #111720; color: var(--ink); font-weight: 400; }
+.search-limit-field input:focus { outline: 2px solid #7086ff; outline-offset: 1px; }
+.search-limit-field small { color: #8190a0; font-size: 10px; font-weight: 400; }
 .form-error { color: var(--danger); font-size: 12px; }
 .form-error:empty { display: none; }
 .result-heading { margin-bottom: 7px; }
@@ -138,6 +142,7 @@ h3 { margin: 0; font-size: 16px; }
   .shape-preview i { width: 7px; height: 7px; }
   .field-row { gap: 7px; }
   .editor-footer { align-items: stretch; flex-direction: column; }
+  .search-limit-field { min-width: 0; }
   .button-solve { width: 100%; }
   .board-wrap { grid-template-columns: 19px repeat(6, minmax(0, 1fr)); grid-template-rows: 20px repeat(6, minmax(34px, 1fr)); gap: 2px; }
   .page-footer { padding: 0 16px 20px; }
