@@ -1,7 +1,6 @@
 const $ = (selector) => document.querySelector(selector);
 const COLORS = ["#d95f59", "#4b8ccb", "#54a878", "#9366bd", "#e2a43a", "#3eaaa6"];
 let config = { mainGroups: [], selectedMainGroup: 0, groups: [] };
-let groupSequence = 0;
 const expandedSkills = new Set();
 let pyodidePromise;
 
@@ -18,7 +17,7 @@ async function loadBrowserSolver() {
         });
       }
       const runtime = await window.loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.27.7/full/" });
-      const response = await fetch("./solver.py?v=skill-groups-shapes-1");
+      const response = await fetch("./solver.py?v=search-seed-2");
       if (!response.ok) throw new Error("無法載入排列搜尋程式。");
       await runtime.runPythonAsync(await response.text());
       return runtime;
@@ -104,7 +103,7 @@ function groupCard(group, index) {
   const color = /^#[0-9a-fA-F]{6}$/.test(group.color) ? group.color : COLORS[index % COLORS.length];
   const variants = group.pieces.map((piece, pieceIndex) => variantCard(index, piece, pieceIndex, color)).join("");
   const key = `passive-group:${index}`;
-  return `<article class="card group-card" style="--group-color:${color}"><div class="card-title"><strong><span class="color-dot"></span>被動技能組 ${index + 1}</strong><div class="group-actions"><button class="button button-small" data-move-group="${index}:up" type="button" aria-label="提高規則優先順序">↑</button><button class="button button-small" data-move-group="${index}:down" type="button" aria-label="降低規則優先順序">↓</button><button class="button button-danger button-small" data-remove-group="${index}" type="button">刪除</button></div></div><details data-fold-key="${key}" ${expandedSkills.has(key) ? "open" : ""}><summary class="group-summary"><strong data-passive-name>${escapeHtml(group.name || `被動技能組 ${index + 1}`)}</strong><span data-passive-min>最少 ${group.min}</span><span data-passive-max>最多 ${group.max ?? "不限"}</span><span data-passive-prefer>${group.preferMore ? "越多越好" : "不優先"}</span></summary><div class="group-editor"><div class="field-row"><label>組別名稱<input data-group="${index}" data-field="name" value="${escapeHtml(group.name)}"></label><label>顯示顏色<input data-group="${index}" data-field="color" type="color" value="${color}"></label></div><div class="field-row"><label>最少選擇<input data-group="${index}" data-field="min" type="number" min="0" value="${group.min}"></label><label>最多選擇（留白不限）<input data-group="${index}" data-field="max" type="number" min="0" placeholder="不限" value="${group.max ?? ""}"></label></div><label class="check-label"><input data-group="${index}" data-field="preferMore" type="checkbox" ${group.preferMore ? "checked" : ""}> 越多越好（依組別順序優先）</label><div class="variant-list">${variants}</div><button class="button button-small" data-add-variant="${index}" type="button">＋ 新增被動技能形狀</button></div></details></article>`;
+  return `<article class="card group-card" style="--group-color:${color}"><div class="card-title"><strong><span class="color-dot"></span>輔助技能組 ${index + 1}</strong><div class="group-actions"><button class="button button-small" data-move-group="${index}:up" type="button" aria-label="提高規則優先順序">↑</button><button class="button button-small" data-move-group="${index}:down" type="button" aria-label="降低規則優先順序">↓</button><button class="button button-danger button-small" data-remove-group="${index}" type="button">刪除</button></div></div><details data-fold-key="${key}" ${expandedSkills.has(key) ? "open" : ""}><summary class="group-summary"><strong data-passive-name>${escapeHtml(group.name || `輔助技能組 ${index + 1}`)}</strong><span data-passive-min>最少 ${group.min}</span><span data-passive-max>最多 ${group.max ?? "不限"}</span><span data-passive-prefer>${group.preferMore ? "越多越好" : "不優先"}</span></summary><div class="group-editor"><div class="field-row"><label>組別名稱<input data-group="${index}" data-field="name" value="${escapeHtml(group.name)}"></label><label>顯示顏色<input data-group="${index}" data-field="color" type="color" value="${color}"></label></div><div class="field-row"><label>最少選擇<input data-group="${index}" data-field="min" type="number" min="0" value="${group.min}"></label><label>最多選擇（留白不限）<input data-group="${index}" data-field="max" type="number" min="0" placeholder="不限" value="${group.max ?? ""}"></label></div><label class="check-label"><input data-group="${index}" data-field="preferMore" type="checkbox" ${group.preferMore ? "checked" : ""}> 越多越好（依組別順序優先）</label><div class="variant-list">${variants}</div><button class="button button-small" data-add-variant="${index}" type="button">＋ 新增輔助技能形狀</button></div></details></article>`;
 }
 
 function mainGroupCard(group, groupIndex) {
@@ -116,8 +115,9 @@ function mainGroupCard(group, groupIndex) {
 
 function renderEditor() {
   $("#main-groups").innerHTML = config.mainGroups.map(mainGroupCard).join("") || `<p class="empty-hint">尚無主動技能組，請新增至少一組。</p>`;
-  $("#groups").innerHTML = config.groups.map(groupCard).join("") || `<p class="empty-hint">尚無被動技能組，請新增至少一組。</p>`;
+  $("#groups").innerHTML = config.groups.map(groupCard).join("") || `<p class="empty-hint">尚無輔助技能組，請新增至少一組。</p>`;
   document.querySelectorAll("details[data-fold-key]").forEach((details) => details.addEventListener("toggle", () => {
+    if (!details.isConnected) return;
     if (details.open) expandedSkills.add(details.dataset.foldKey);
     else expandedSkills.delete(details.dataset.foldKey);
   }));
@@ -145,7 +145,7 @@ function updateGroupSummaries() {
   document.querySelectorAll("#groups .group-card").forEach((card, index) => {
     const group = config.groups[index];
     if (!group) return;
-    card.querySelector("[data-passive-name]").textContent = group.name || `被動技能組 ${index + 1}`;
+    card.querySelector("[data-passive-name]").textContent = group.name || `輔助技能組 ${index + 1}`;
     card.querySelector("[data-passive-min]").textContent = `最少 ${group.min}`;
     card.querySelector("[data-passive-max]").textContent = `最多 ${group.max ?? "不限"}`;
     card.querySelector("[data-passive-prefer]").textContent = group.preferMore ? "越多越好" : "不優先";
@@ -178,10 +178,32 @@ function readForm() {
 }
 
 function addGroup() {
-  const index = groupSequence++;
-  config.groups.push({ name: `被動技能組 ${index + 1}`, color: COLORS[index % COLORS.length], min: 0, max: 1, preferMore: false, pieces: [{ name: "形狀 1", stock: 1, shape: "#" }] });
+  const index = config.groups.length;
+  config.groups.push({ name: `輔助技能組 ${index + 1}`, color: COLORS[index % COLORS.length], min: 0, max: 1, preferMore: false, pieces: [{ name: "形狀 1", stock: 1, shape: "#" }] });
   expandedSkills.add(`passive-group:${index}`);
   expandedSkills.add(`variant:${index}:0`);
+}
+
+function shiftFoldKeys(groupKey, pieceKey, groupIndex, pieceIndex = null) {
+  const updated = new Set();
+  expandedSkills.forEach((key) => {
+    const parts = key.split(":");
+    if (parts[0] !== groupKey && parts[0] !== pieceKey) { updated.add(key); return; }
+    const currentGroup = Number(parts[1]);
+    if (pieceIndex !== null) {
+      if (parts[0] === pieceKey && currentGroup === groupIndex) {
+        const currentPiece = Number(parts[2]);
+        if (currentPiece === pieceIndex) return;
+        if (currentPiece > pieceIndex) parts[2] = currentPiece - 1;
+      }
+    } else {
+      if (currentGroup === groupIndex) return;
+      if (currentGroup > groupIndex) parts[1] = currentGroup - 1;
+    }
+    updated.add(parts.join(":"));
+  });
+  expandedSkills.clear();
+  updated.forEach((key) => expandedSkills.add(key));
 }
 
 function addMainGroup() {
@@ -228,29 +250,29 @@ document.addEventListener("click", (event) => {
     config.mainGroups.splice(index, 1);
     if (config.selectedMainGroup === index) config.selectedMainGroup = config.mainGroups.length ? Math.min(index, config.mainGroups.length - 1) : 0;
     else if (config.selectedMainGroup > index) config.selectedMainGroup -= 1;
-    expandedSkills.clear();
+    shiftFoldKeys("main-group", "main-piece", index);
     renderEditor(); clearResult(); return;
   } else if (button.dataset.removeMainPiece) {
     const [groupIndex, pieceIndex] = button.dataset.removeMainPiece.split(":").map(Number);
     config.mainGroups[groupIndex].pieces.splice(pieceIndex, 1);
-    expandedSkills.clear();
+    shiftFoldKeys("main-group", "main-piece", groupIndex, pieceIndex);
     renderEditor(); clearResult(); return;
   } else if (button.dataset.addMainPiece !== undefined) {
     const groupIndex = Number(button.dataset.addMainPiece);
     const pieces = config.mainGroups[groupIndex].pieces;
     pieces.push({ name: `主動技能 ${pieces.length + 1}`, stock: 1, shape: "#" });
-    expandedSkills.clear();
     expandedSkills.add(`main-group:${groupIndex}`);
     expandedSkills.add(`main-piece:${groupIndex}:${pieces.length - 1}`);
     renderEditor(); clearResult(); return;
   } else if (button.dataset.removeGroup !== undefined) {
-    config.groups.splice(Number(button.dataset.removeGroup), 1);
-    expandedSkills.clear();
+    const index = Number(button.dataset.removeGroup);
+    config.groups.splice(index, 1);
+    shiftFoldKeys("passive-group", "variant", index);
   }
   else if (button.dataset.removeVariant) {
     const [groupIndex, pieceIndex] = button.dataset.removeVariant.split(":").map(Number);
     config.groups[groupIndex].pieces.splice(pieceIndex, 1);
-    expandedSkills.clear();
+    shiftFoldKeys("passive-group", "variant", groupIndex, pieceIndex);
   } else if (button.dataset.addVariant !== undefined) {
     const groupIndex = Number(button.dataset.addVariant);
     config.groups[groupIndex].pieces.push({ name: `形狀 ${config.groups[groupIndex].pieces.length + 1}`, stock: 1, shape: "#" });
@@ -340,7 +362,7 @@ function downloadConfig() {
 }
 
 function importConfig(data) {
-  if (!data || !Array.isArray(data.groups)) throw new Error("JSON 格式不符；缺少被動技能組。");
+  if (!data || !Array.isArray(data.groups)) throw new Error("JSON 格式不符；缺少輔助技能組。");
   let mainGroups;
   if (Array.isArray(data.mainGroups)) mainGroups = data.mainGroups;
   else if (Array.isArray(data.mainPieces)) mainGroups = [{ name: "主動技能組 1", pieces: data.mainPieces }];
@@ -359,11 +381,10 @@ function importConfig(data) {
   config = {
     mainGroups: mainGroups.map((group, groupIndex) => ({ ...group, name: group.name || `主動技能組 ${groupIndex + 1}`, pieces: group.pieces.map((piece, pieceIndex) => ({ ...piece, name: piece.name || `主動技能 ${pieceIndex + 1}`, shape: Array.isArray(piece.shape) ? piece.shape.join("\n") : piece.shape })) })),
     selectedMainGroup,
-    groups: data.groups.map((group, index) => ({ ...group, name: group.name || `被動技能組 ${index + 1}`, min: Number(group.min ?? 0), max: group.max === "" ? null : group.max ?? null, preferMore: Boolean(group.preferMore), color: /^#[0-9a-fA-F]{6}$/.test(group.color) ? group.color : COLORS[index % COLORS.length], pieces: group.pieces.map((piece, pieceIndex) => ({ ...piece, name: `形狀 ${pieceIndex + 1}`, shape: Array.isArray(piece.shape) ? piece.shape.join("\n") : piece.shape })) })),
+    groups: data.groups.map((group, index) => ({ ...group, name: group.name || `輔助技能組 ${index + 1}`, min: Number(group.min ?? 0), max: group.max === "" ? null : group.max ?? null, preferMore: Boolean(group.preferMore), color: /^#[0-9a-fA-F]{6}$/.test(group.color) ? group.color : COLORS[index % COLORS.length], pieces: group.pieces.map((piece, pieceIndex) => ({ ...piece, name: `形狀 ${pieceIndex + 1}`, shape: Array.isArray(piece.shape) ? piece.shape.join("\n") : piece.shape })) })),
   };
   if (Number.isSafeInteger(Number(data.searchLimit)) && Number(data.searchLimit) > 0) $("#search-limit").value = Number(data.searchLimit);
   expandedSkills.clear();
-  groupSequence = config.groups.length;
   renderEditor();
   clearResult();
 }

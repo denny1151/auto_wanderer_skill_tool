@@ -251,6 +251,16 @@ def solve(config: Any, max_nodes: int = MAX_SEARCH_NODES) -> dict:
         sorted(indices, key=lambda index: types[index]["area"])
         for indices in type_indices_by_group
     ]
+    minimum_required_count = sum(group["min"] for group in groups)
+    minimum_required_area = 0
+    for group_index, group in enumerate(groups):
+        needed = group["min"]
+        for type_index in type_indices_by_group_by_area[group_index]:
+            selected = min(needed, types[type_index]["stock"])
+            minimum_required_area += selected * types[type_index]["area"]
+            needed -= selected
+            if not needed:
+                break
 
     best_score = None
     best_solution = None
@@ -266,16 +276,25 @@ def solve(config: Any, max_nodes: int = MAX_SEARCH_NODES) -> dict:
             if placement.mask in seen_main_masks:
                 continue
             seen_main_masks.add(placement.mask)
-            main_candidates.append((main, placement))
+            border_mask = _neighbor_mask(placement.mask) & board_mask
+            if border_mask.bit_count() < minimum_required_count:
+                continue
+            if BOARD_SIZE * BOARD_SIZE - len(main["shape"]) < minimum_required_area:
+                continue
+            main_candidates.append((main, placement, border_mask))
+    main_candidates.sort(key=lambda candidate: (-candidate[2].bit_count(), len(candidate[0]["shape"])))
 
-    def consider(main: dict, main_placement: ShapePlacement, chosen: list[dict], occupied: int, counts: list[int]) -> None:
+    def consider(main: dict, main_placement: ShapePlacement,
+                 chosen: list[tuple[int, ShapePlacement]], occupied: int, counts: list[int]) -> None:
         nonlocal best_score, best_solution
         if any(counts[index] < minimum or counts[index] > maximum
                for index, (minimum, maximum) in enumerate(group_limits)):
             return
         blanks = 36 - _count(occupied)
-        connectivity = _blank_stats(occupied)
         preferred_counts = tuple(counts[index] for index in preferred_groups)
+        if best_score is not None and (preferred_counts, blanks) < best_score[:2]:
+            return
+        connectivity = _blank_stats(occupied)
         score = (preferred_counts, blanks, *connectivity)
         if best_score is not None and score <= best_score:
             return
@@ -306,17 +325,109 @@ def solve(config: Any, max_nodes: int = MAX_SEARCH_NODES) -> dict:
             "mainPiece": main["name"],
         }
 
-    for main, main_placement in main_candidates:
+    seed_budget = max_nodes // 4
+
+    def find_seed(target_counts: list[int]) -> bool:
+        for candidate_index, (main, main_placement, border_mask) in enumerate(main_candidates):
+            if nodes >= seed_budget:
+                return False
+            if border_mask.bit_count() < sum(target_counts):
+                continue
+            main_mask = main_placement.mask
+            candidates_by_group = [[] for _ in groups]
+            for type_index, piece_type in enumerate(types):
+                group_index = piece_type["groupIndex"]
+                if not piece_type["stock"] or not target_counts[group_index]:
+                    continue
+                for placement in piece_type["placements"]:
+                    border_cells = placement.mask & border_mask
+                    if border_cells and not placement.mask & main_mask:
+                        candidates_by_group[group_index].append((type_index, placement, border_cells))
+            for candidates in candidates_by_group:
+                candidates.sort(key=lambda option: (types[option[0]]["area"], option[2].bit_count(), option[1].mask))
+
+            counts = [0] * len(groups)
+            remaining_stock = [piece_type["stock"] for piece_type in types]
+            next_option = [0] * len(groups)
+            chosen = []
+            remaining_candidates = len(main_candidates) - candidate_index
+            seed_stop = min(seed_budget, nodes + max(1, (seed_budget - nodes) // remaining_candidates))
+
+            def find_feasible(occupied: int) -> bool:
+                nonlocal nodes
+                if nodes >= seed_stop:
+                    return False
+                nodes += 1
+                deficits = [max(0, target - counts[index]) for index, target in enumerate(target_counts)]
+                if not any(deficits):
+                    consider(main, main_placement, chosen, occupied, counts)
+                    return True
+                if (border_mask & ~occupied).bit_count() < sum(deficits):
+                    return False
+
+                selected_group = None
+                selected_options = []
+                selected_priority = None
+                for group_index, deficit in enumerate(deficits):
+                    if not deficit:
+                        continue
+                    options = []
+                    reachable_border = 0
+                    for option_index in range(next_option[group_index], len(candidates_by_group[group_index])):
+                        type_index, placement, border_cells = candidates_by_group[group_index][option_index]
+                        if remaining_stock[type_index] and not placement.mask & occupied:
+                            options.append((option_index, type_index, placement))
+                            reachable_border |= border_cells
+                    if len(options) < deficit or reachable_border.bit_count() < deficit:
+                        return False
+                    priority = (len(options) / deficit, len(options))
+                    if selected_priority is None or priority < selected_priority:
+                        selected_group = group_index
+                        selected_options = options
+                        selected_priority = priority
+
+                for option_index, type_index, placement in selected_options:
+                    remaining_stock[type_index] -= 1
+                    counts[selected_group] += 1
+                    chosen.append((type_index, placement))
+                    previous_option = next_option[selected_group]
+                    next_option[selected_group] = option_index + 1
+                    found = find_feasible(occupied | placement.mask)
+                    next_option[selected_group] = previous_option
+                    chosen.pop()
+                    counts[selected_group] -= 1
+                    remaining_stock[type_index] += 1
+                    if found:
+                        return True
+                return False
+
+            if find_feasible(main_mask):
+                return True
+        return False
+
+    minimum_targets = [minimum for minimum, _ in group_limits]
+    if seed_budget and find_seed(minimum_targets):
+        for preferred_index, group_index in enumerate(preferred_groups):
+            while nodes < seed_budget:
+                targets = minimum_targets.copy()
+                for previous_group in preferred_groups[:preferred_index]:
+                    targets[previous_group] = best_score[0][preferred_order[previous_group]]
+                targets[group_index] = best_score[0][preferred_index] + 1
+                if targets[group_index] > group_limits[group_index][1] or not find_seed(targets):
+                    break
+
+    for main, main_placement, border_mask in main_candidates:
         if stopped:
             break
         main_mask = main_placement.mask
-        border_mask = _neighbor_mask(main_mask) & board_mask
         if not border_mask:
             continue
         candidate_maps = []
         for piece_type in types:
             by_anchor = {}
             for placement in piece_type["placements"]:
+                if placement.mask & main_mask:
+                    continue
                 border_cells = placement.mask & border_mask
                 if not border_cells:
                     continue
@@ -336,10 +447,10 @@ def solve(config: Any, max_nodes: int = MAX_SEARCH_NODES) -> dict:
             nonlocal nodes, stopped
             if stopped:
                 return
-            nodes += 1
-            if nodes > max_nodes:
+            if nodes >= max_nodes:
                 stopped = True
                 return
+            nodes += 1
 
             processed = covered | blocked
             unprocessed = border_mask & ~processed
@@ -349,6 +460,9 @@ def solve(config: Any, max_nodes: int = MAX_SEARCH_NODES) -> dict:
                     return
                 if counts[group_index] + min(available, _count(unprocessed)) < minimum:
                     return
+
+            if all(counts[index] >= minimum for index, (minimum, _) in enumerate(group_limits)):
+                consider(main, main_placement, chosen, occupied, counts)
 
             if best_score is not None:
                 current_preferred_upper = []
@@ -382,7 +496,7 @@ def solve(config: Any, max_nodes: int = MAX_SEARCH_NODES) -> dict:
                     for group_index, (minimum, _) in enumerate(group_limits):
                         target_count = minimum
                         if group_index in preferred_groups:
-                            target_count = max(target_count, best_score[0][preferred_groups.index(group_index)])
+                            target_count = max(target_count, best_score[0][preferred_order[group_index]])
                         needed = max(0, target_count - counts[group_index])
                         if not needed:
                             continue
@@ -408,7 +522,6 @@ def solve(config: Any, max_nodes: int = MAX_SEARCH_NODES) -> dict:
                             return
 
             if not unprocessed:
-                consider(main, main_placement, chosen, occupied, counts)
                 return
 
             anchor = unprocessed & -unprocessed
@@ -421,7 +534,10 @@ def solve(config: Any, max_nodes: int = MAX_SEARCH_NODES) -> dict:
                     if border_cells & processed or placement.mask & occupied:
                         continue
                     options.append((type_index, placement, border_cells))
+            minimum_priority = [best_solution is None and counts[index] < minimum
+                                for index, (minimum, _) in enumerate(group_limits)]
             options.sort(key=lambda option: (
+                not minimum_priority[types[option[0]]["groupIndex"]],
                 0 if groups[types[option[0]]["groupIndex"]]["preferMore"] else 1,
                 preferred_order.get(types[option[0]]["groupIndex"], types[option[0]]["groupIndex"]),
                 types[option[0]]["area"] if groups[types[option[0]]["groupIndex"]]["preferMore"] else -types[option[0]]["area"],
