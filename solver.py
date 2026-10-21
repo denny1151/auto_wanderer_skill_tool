@@ -341,6 +341,7 @@ def solve(config: Any, max_nodes: int = MAX_SEARCH_NODES) -> dict:
 
             if best_score is not None:
                 current_preferred_upper = []
+                unprocessed_count = _count(unprocessed)
                 for group_index in preferred_groups:
                     free_area = 36 - _count(occupied)
                     area_limited_count = 0
@@ -349,10 +350,16 @@ def solve(config: Any, max_nodes: int = MAX_SEARCH_NODES) -> dict:
                         selected = min(remaining_stock[type_index], free_area // piece_area)
                         area_limited_count += selected
                         free_area -= selected * piece_area
+                    # Each required skill needs its own unprocessed cell next to the active skill.
+                    required_other_slots = sum(
+                        max(0, minimum - counts[other_index])
+                        for other_index, (minimum, _) in enumerate(group_limits)
+                        if other_index != group_index
+                    )
                     current_preferred_upper.append(min(
                         group_limits[group_index][1],
                         counts[group_index] + remaining_by_group[group_index],
-                        counts[group_index] + _count(unprocessed),
+                        counts[group_index] + max(0, unprocessed_count - required_other_slots),
                         counts[group_index] + area_limited_count,
                     ))
                 upper_tuple = tuple(current_preferred_upper)
@@ -377,8 +384,17 @@ def solve(config: Any, max_nodes: int = MAX_SEARCH_NODES) -> dict:
                         if needed:
                             impossible = True
                             break
-                    if impossible or 36 - _count(occupied) - required_area < best_score[1]:
+                    if impossible:
                         return
+                    upper_blanks = 36 - _count(occupied) - required_area
+                    if upper_blanks < best_score[1]:
+                        return
+                    if upper_blanks == best_score[1]:
+                        best_connectivity = best_score[2:]
+                        best_possible_connectivity = (1, upper_blanks, -1) if upper_blanks else (1, 0, 0)
+                        # A connected empty region already reaches the best possible tie-break score.
+                        if best_connectivity >= best_possible_connectivity:
+                            return
 
             if not unprocessed:
                 consider(main, main_placement, chosen, occupied, counts)

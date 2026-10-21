@@ -18,7 +18,7 @@ async function loadBrowserSolver() {
         });
       }
       const runtime = await window.loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.27.7/full/" });
-      const response = await fetch("./solver.py?v=search-limit-2");
+      const response = await fetch("./solver.py?v=search-prune-3");
       if (!response.ok) throw new Error("無法載入排列搜尋程式。");
       await runtime.runPythonAsync(await response.text());
       return runtime;
