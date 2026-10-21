@@ -20,6 +20,7 @@ async function loadBrowserSolver() {
       const response = await fetch("./solver.py");
       if (!response.ok) throw new Error("無法載入排列搜尋程式。");
       runtime.FS.writeFile("/solver.py", await response.text());
+      runtime.runPython("import sys; sys.path.insert(0, '/')");
       return runtime;
     })();
   }
