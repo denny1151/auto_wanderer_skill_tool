@@ -19,8 +19,7 @@ async function loadBrowserSolver() {
       const runtime = await window.loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.27.7/full/" });
       const response = await fetch("./solver.py");
       if (!response.ok) throw new Error("無法載入排列搜尋程式。");
-      runtime.FS.writeFile("/solver.py", await response.text());
-      runtime.runPython("import sys; sys.path.insert(0, '/')");
+      await runtime.runPythonAsync(await response.text());
       return runtime;
     })();
   }
@@ -154,7 +153,7 @@ $("#solve").addEventListener("click", async () => {
     const runtime = await loadBrowserSolver();
     button.textContent = "搜尋中…";
     const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(config))));
-    const output = await runtime.runPythonAsync(`import base64, json, solver\n_config = json.loads(base64.b64decode("${encoded}"))\njson.dumps(solver.solve(_config), ensure_ascii=False)`);
+    const output = await runtime.runPythonAsync(`import base64, json\n_config = json.loads(base64.b64decode("${encoded}"))\njson.dumps(solve(_config), ensure_ascii=False)`);
     const data = JSON.parse(output);
     clearResult(); showResult(data);
   } catch (error) { $("#form-error").textContent = error.message || `搜尋失敗：${error}`; }
