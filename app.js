@@ -295,6 +295,7 @@ function clearResult() {
     cell.style.removeProperty("--piece-color");
     cell.className = "board-cell";
     cell.removeAttribute("title");
+    cell.replaceChildren();
   });
   $("#summary").hidden = true;
   $("#legend").replaceChildren();
@@ -317,6 +318,7 @@ function showResult(data) {
   solution.placements.forEach((placement) => {
     legend.set(`${placement.group}|${placement.color}`, { group: placement.group, color: placement.color });
     const placementCells = new Set(placement.cells.map(([row, col]) => `${row - 1}:${col - 1}`));
+    const [labelRow, labelCol] = placement.cells[0];
     placement.cells.forEach(([row, col]) => {
       const cell = cells[(row - 1) * 6 + col - 1];
       cell.style.background = placement.color;
@@ -329,6 +331,12 @@ function showResult(data) {
       if (placementCells.has(`${localRow}:${localCol + 1}`)) cell.classList.add("join-right");
       const label = placement.kind === "main" ? `${placement.group}／${placement.pieceName}` : placement.group;
       cell.title = `${label}（${row}, ${col}）`;
+      if (row === labelRow && col === labelCol) {
+        const name = document.createElement("span");
+        name.className = "board-piece-label";
+        name.textContent = placement.group;
+        cell.append(name);
+      }
     });
   });
   $("#legend").innerHTML = Array.from(legend.values()).map((item) => `<span class="legend-item"><i style="background:${escapeHtml(item.color)}"></i>${escapeHtml(item.group)}</span>`).join("");
