@@ -2,6 +2,7 @@ const $ = (selector) => document.querySelector(selector);
 const COLORS = ["#d95f59", "#4b8ccb", "#54a878", "#9366bd", "#e2a43a", "#3eaaa6"];
 let config = { mainPieces: [], groups: [] };
 let groupSequence = 0;
+const expandedSkills = new Set();
 let pyodidePromise;
 
 async function loadBrowserSolver() {
@@ -17,7 +18,7 @@ async function loadBrowserSolver() {
         });
       }
       const runtime = await window.loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.27.7/full/" });
-      const response = await fetch("./solver.py?v=dark-graph-json-2");
+      const response = await fetch("./solver.py?v=skill-fold-1");
       if (!response.ok) throw new Error("無法載入排列搜尋程式。");
       await runtime.runPythonAsync(await response.text());
       return runtime;
@@ -55,6 +56,17 @@ function shapeText(matrix) {
   return matrix.slice(minRow, maxRow + 1).map((row) => row.slice(minCol, maxCol + 1).map((cell) => cell ? "#" : ".").join("")).join("\n");
 }
 
+function shapePreview(shape, color) {
+  const filled = shapeMatrix(shape).flatMap((row, r) => row.map((value, c) => value ? [r, c] : null).filter(Boolean));
+  if (!filled.length) return `<span class="shape-preview-empty">未畫形狀</span>`;
+  const minRow = Math.min(...filled.map(([r]) => r)), maxRow = Math.max(...filled.map(([r]) => r));
+  const minCol = Math.min(...filled.map(([, c]) => c)), maxCol = Math.max(...filled.map(([, c]) => c));
+  const width = maxCol - minCol + 1;
+  const cells = Array.from({ length: (maxRow - minRow + 1) * width }, () => "<i></i>");
+  filled.forEach(([r, c]) => { cells[(r - minRow) * width + c - minCol] = `<i class="is-filled" style="--shape-color:${color}"></i>`; });
+  return `<span class="shape-preview" style="--preview-columns:${width}" aria-label="已畫 ${filled.length} 格">${cells.join("")}</span>`;
+}
+
 function shapeEditor(shape, owner, index, pieceIndex = null, color = "#8c98a8") {
   const matrix = shapeMatrix(shape);
   const ownerAttributes = pieceIndex === null
@@ -67,22 +79,37 @@ function shapeEditor(shape, owner, index, pieceIndex = null, color = "#8c98a8") 
 }
 
 function mainCard(piece, index) {
-  return `<article class="card"><div class="card-title"><strong>主動技能 ${index + 1}</strong><button class="button button-danger button-small" data-remove-main="${index}" type="button">刪除</button></div><div class="field-row"><label>名稱<input data-main="${index}" data-field="name" value="${escapeHtml(piece.name)}"></label><label>可用數量<input data-main="${index}" data-field="stock" type="number" min="0" value="${piece.stock}"></label></div><div class="shape-field"><span>技能形狀</span>${shapeEditor(piece.shape, "main", index, null, "#f1a977")}</div></article>`;
+  const key = `main:${index}`;
+  return `<article class="card skill-card"><details data-fold-key="${key}" ${expandedSkills.has(key) ? "open" : ""}><summary class="skill-summary"><span class="skill-summary-title">${escapeHtml(piece.name || `主動技能 ${index + 1}`)}</span><span class="skill-summary-stock">數量 ${piece.stock}</span>${shapePreview(piece.shape, "#f1a977")}</summary><div class="skill-editor"><div class="field-row"><label>名稱<input data-main="${index}" data-field="name" value="${escapeHtml(piece.name)}"></label><label>可用數量<input data-main="${index}" data-field="stock" type="number" min="0" value="${piece.stock}"></label></div><div class="shape-field"><span>技能形狀</span>${shapeEditor(piece.shape, "main", index, null, "#f1a977")}</div></div></details><button class="button button-danger button-small skill-delete" data-remove-main="${index}" type="button">刪除</button></article>`;
 }
 
 function variantCard(groupIndex, piece, pieceIndex, color) {
-  return `<div class="variant-card"><div class="card-title"><strong>技能形狀 ${pieceIndex + 1}</strong><button class="button button-danger button-small" data-remove-variant="${groupIndex}:${pieceIndex}" type="button">刪除</button></div><div class="field-row"><label>名稱<input data-group="${groupIndex}" data-piece="${pieceIndex}" data-field="name" value="${escapeHtml(piece.name)}"></label><label>可用數量<input data-group="${groupIndex}" data-piece="${pieceIndex}" data-field="stock" type="number" min="0" value="${piece.stock}"></label></div><div class="shape-field"><span>技能形狀</span>${shapeEditor(piece.shape, "variant", groupIndex, pieceIndex, color)}</div></div>`;
+  const key = `variant:${groupIndex}:${pieceIndex}`;
+  return `<article class="variant-card skill-card"><details data-fold-key="${key}" ${expandedSkills.has(key) ? "open" : ""}><summary class="skill-summary"><span class="skill-summary-title">${escapeHtml(piece.name || `被動技能 ${pieceIndex + 1}`)}</span><span class="skill-summary-stock">數量 ${piece.stock}</span>${shapePreview(piece.shape, color)}</summary><div class="skill-editor"><div class="field-row"><label>名稱<input data-group="${groupIndex}" data-piece="${pieceIndex}" data-field="name" value="${escapeHtml(piece.name)}"></label><label>可用數量<input data-group="${groupIndex}" data-piece="${pieceIndex}" data-field="stock" type="number" min="0" value="${piece.stock}"></label></div><div class="shape-field"><span>技能形狀</span>${shapeEditor(piece.shape, "variant", groupIndex, pieceIndex, color)}</div></div></details><button class="button button-danger button-small skill-delete" data-remove-variant="${groupIndex}:${pieceIndex}" type="button">刪除</button></article>`;
 }
 
 function groupCard(group, index) {
   const color = /^#[0-9a-fA-F]{6}$/.test(group.color) ? group.color : COLORS[index % COLORS.length];
   const variants = group.pieces.map((piece, pieceIndex) => variantCard(index, piece, pieceIndex, color)).join("");
-  return `<article class="card group-card" style="--group-color:${color}"><div class="card-title"><strong><span class="color-dot"></span>輔助技能組 ${index + 1}</strong><div class="group-actions"><button class="button button-small" data-move-group="${index}:up" type="button" aria-label="提高規則優先順序">↑</button><button class="button button-small" data-move-group="${index}:down" type="button" aria-label="降低規則優先順序">↓</button><button class="button button-danger button-small" data-remove-group="${index}" type="button">刪除</button></div></div><div class="field-row"><label>組別名稱<input data-group="${index}" data-field="name" value="${escapeHtml(group.name)}"></label><label>顯示顏色<input data-group="${index}" data-field="color" type="color" value="${color}"></label></div><div class="field-row"><label>最少選擇<input data-group="${index}" data-field="min" type="number" min="0" value="${group.min}"></label><label>最多選擇<input data-group="${index}" data-field="max" type="number" min="0" value="${group.max}"></label></div><label class="check-label"><input data-group="${index}" data-field="preferMore" type="checkbox" ${group.preferMore ? "checked" : ""}> 越多越好（依組別順序優先）</label><div class="variant-list">${variants}</div><button class="button button-small" data-add-variant="${index}" type="button">＋ 新增輔助技能形狀</button></article>`;
+  return `<article class="card group-card" style="--group-color:${color}"><div class="card-title"><strong><span class="color-dot"></span>被動技能組 ${index + 1}</strong><div class="group-actions"><button class="button button-small" data-move-group="${index}:up" type="button" aria-label="提高規則優先順序">↑</button><button class="button button-small" data-move-group="${index}:down" type="button" aria-label="降低規則優先順序">↓</button><button class="button button-danger button-small" data-remove-group="${index}" type="button">刪除</button></div></div><div class="field-row"><label>組別名稱<input data-group="${index}" data-field="name" value="${escapeHtml(group.name)}"></label><label>顯示顏色<input data-group="${index}" data-field="color" type="color" value="${color}"></label></div><div class="field-row"><label>最少選擇<input data-group="${index}" data-field="min" type="number" min="0" value="${group.min}"></label><label>最多選擇<input data-group="${index}" data-field="max" type="number" min="0" value="${group.max}"></label></div><label class="check-label"><input data-group="${index}" data-field="preferMore" type="checkbox" ${group.preferMore ? "checked" : ""}> 越多越好（依組別順序優先）</label><div class="variant-list">${variants}</div><button class="button button-small" data-add-variant="${index}" type="button">＋ 新增被動技能形狀</button></article>`;
 }
 
 function renderEditor() {
   $("#main-pieces").innerHTML = config.mainPieces.map(mainCard).join("") || `<p class="empty-hint">尚無主動技能，請新增至少一種。</p>`;
-  $("#groups").innerHTML = config.groups.map(groupCard).join("") || `<p class="empty-hint">尚無輔助技能組，請新增至少一組。</p>`;
+  $("#groups").innerHTML = config.groups.map(groupCard).join("") || `<p class="empty-hint">尚無被動技能組，請新增至少一組。</p>`;
+  document.querySelectorAll("details[data-fold-key]").forEach((details) => details.addEventListener("toggle", () => {
+    if (details.open) expandedSkills.add(details.dataset.foldKey);
+    else expandedSkills.delete(details.dataset.foldKey);
+  }));
+}
+
+function updateSkillSummaries() {
+  document.querySelectorAll("details[data-fold-key]").forEach((details) => {
+    const input = details.querySelector('input[data-field="name"]');
+    const stock = details.querySelector('input[data-field="stock"]');
+    details.querySelector(".skill-summary-title").textContent = input.value || "未命名技能";
+    details.querySelector(".skill-summary-stock").textContent = `數量 ${stock.value}`;
+  });
 }
 
 function readForm() {
@@ -105,7 +132,8 @@ function readForm() {
 
 function addGroup() {
   const index = groupSequence++;
-  config.groups.push({ name: `輔助技能組 ${index + 1}`, color: COLORS[index % COLORS.length], min: 0, max: 1, preferMore: false, pieces: [{ name: "新輔助技能", stock: 1, shape: "#" }] });
+  config.groups.push({ name: `被動技能組 ${index + 1}`, color: COLORS[index % COLORS.length], min: 0, max: 1, preferMore: false, pieces: [{ name: "新被動技能", stock: 1, shape: "#" }] });
+  expandedSkills.add(`variant:${index}:0`);
 }
 
 function updateShape(button) {
@@ -121,11 +149,12 @@ function updateShape(button) {
   renderEditor();
 }
 
-$("#main-pieces").addEventListener("input", readForm);
-$("#groups").addEventListener("input", readForm);
+$("#main-pieces").addEventListener("input", () => { readForm(); updateSkillSummaries(); });
+$("#groups").addEventListener("input", () => { readForm(); updateSkillSummaries(); });
 $("#add-main").addEventListener("click", () => {
   readForm();
   config.mainPieces.push({ name: `主動技能 ${config.mainPieces.length + 1}`, stock: 1, shape: "#" });
+  expandedSkills.add(`main:${config.mainPieces.length - 1}`);
   renderEditor();
 });
 $("#add-group").addEventListener("click", () => { readForm(); addGroup(); renderEditor(); });
@@ -135,16 +164,29 @@ document.addEventListener("click", (event) => {
   if (!button) return;
   if (button.dataset.shapeCell !== undefined) { updateShape(button); return; }
   readForm();
-  if (button.dataset.removeMain !== undefined) config.mainPieces.splice(Number(button.dataset.removeMain), 1);
-  else if (button.dataset.removeGroup !== undefined) config.groups.splice(Number(button.dataset.removeGroup), 1);
+  if (button.dataset.removeMain !== undefined) {
+    config.mainPieces.splice(Number(button.dataset.removeMain), 1);
+    expandedSkills.clear();
+  } else if (button.dataset.removeGroup !== undefined) {
+    config.groups.splice(Number(button.dataset.removeGroup), 1);
+    expandedSkills.clear();
+  }
   else if (button.dataset.removeVariant) {
     const [groupIndex, pieceIndex] = button.dataset.removeVariant.split(":").map(Number);
     config.groups[groupIndex].pieces.splice(pieceIndex, 1);
-  } else if (button.dataset.addVariant !== undefined) config.groups[Number(button.dataset.addVariant)].pieces.push({ name: "新輔助技能", stock: 1, shape: "#" });
+    expandedSkills.clear();
+  } else if (button.dataset.addVariant !== undefined) {
+    const groupIndex = Number(button.dataset.addVariant);
+    config.groups[groupIndex].pieces.push({ name: "新被動技能", stock: 1, shape: "#" });
+    expandedSkills.add(`variant:${groupIndex}:${config.groups[groupIndex].pieces.length - 1}`);
+  }
   else if (button.dataset.moveGroup) {
     const [indexText, direction] = button.dataset.moveGroup.split(":");
     const index = Number(indexText), next = index + (direction === "up" ? -1 : 1);
-    if (next >= 0 && next < config.groups.length) [config.groups[index], config.groups[next]] = [config.groups[next], config.groups[index]];
+    if (next >= 0 && next < config.groups.length) {
+      [config.groups[index], config.groups[next]] = [config.groups[next], config.groups[index]];
+      expandedSkills.clear();
+    }
   } else return;
   renderEditor();
 });

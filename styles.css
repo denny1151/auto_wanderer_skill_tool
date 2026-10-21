@@ -40,7 +40,22 @@ h3 { margin: 0; font-size: 16px; }
 .notice small { color: #93a3b8; font-size: 11px; }
 .setup-section { margin-top: 24px; }
 .cards { display: grid; gap: 10px; }
+.add-below { margin-top: 10px; }
 .card { padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.skill-card { display: flex; align-items: flex-start; gap: 10px; }
+.skill-card > details { flex: 1; min-width: 0; }
+.skill-summary { min-height: 34px; display: flex; align-items: center; gap: 12px; cursor: pointer; list-style: none; }
+.skill-summary::-webkit-details-marker { display: none; }
+.skill-summary::before { content: "＋"; width: 16px; flex: 0 0 16px; color: #9ba7b4; font-size: 13px; }
+.skill-card details[open] > .skill-summary::before { content: "−"; }
+.skill-summary-title { min-width: 70px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 700; }
+.skill-summary-stock { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.shape-preview { display: grid; grid-template-columns: repeat(var(--preview-columns), 9px); gap: 2px; margin-left: auto; }
+.shape-preview i { width: 9px; height: 9px; border: 1px solid #465263; border-radius: 2px; background: #202833; }
+.shape-preview i.is-filled { border-color: var(--shape-color); background: var(--shape-color); }
+.shape-preview-empty { margin-left: auto; color: var(--muted); font-size: 10px; }
+.skill-editor { padding-top: 5px; }
+.skill-delete { flex: 0 0 auto; }
 .group-card { border-left: 4px solid var(--group-color, #7890ff); }
 .card-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
 .group-actions { display: flex; gap: 5px; }
@@ -116,6 +131,11 @@ h3 { margin: 0; font-size: 16px; }
   .layout { padding: 0 12px 20px; gap: 12px; }
   .editor-panel, .result-panel { padding: 16px 13px; border-radius: 13px; }
   .subsection-heading { flex-wrap: wrap; }
+  .skill-card { gap: 6px; padding: 10px; }
+  .skill-summary { gap: 7px; }
+  .skill-summary-title { min-width: 0; max-width: 100px; }
+  .shape-preview { grid-template-columns: repeat(var(--preview-columns), 7px); gap: 1px; }
+  .shape-preview i { width: 7px; height: 7px; }
   .field-row { gap: 7px; }
   .editor-footer { align-items: stretch; flex-direction: column; }
   .button-solve { width: 100%; }
