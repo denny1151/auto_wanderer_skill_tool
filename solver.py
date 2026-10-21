@@ -8,6 +8,9 @@ from typing import Any
 
 
 BOARD_SIZE = 6
+BOARD_MASK = (1 << (BOARD_SIZE * BOARD_SIZE)) - 1
+LEFT_EDGE = sum(1 << (row * BOARD_SIZE) for row in range(BOARD_SIZE))
+RIGHT_EDGE = LEFT_EDGE << (BOARD_SIZE - 1)
 MAX_SEARCH_NODES = 300_000
 MAIN_COLOR = "#F4B183"
 
@@ -83,26 +86,13 @@ def _placements(shape: tuple[tuple[int, int], ...]) -> tuple[ShapePlacement, ...
 
 
 def _neighbor_mask(mask: int) -> int:
-    neighbors = 0
-    for index in range(BOARD_SIZE * BOARD_SIZE):
-        if not (mask >> index) & 1:
-            continue
-        row, col = divmod(index, BOARD_SIZE)
-        for neighbor in (
-            (row - 1, col),
-            (row + 1, col),
-            (row, col - 1),
-            (row, col + 1),
-        ):
-            nr, nc = neighbor
-            if 0 <= nr < BOARD_SIZE and 0 <= nc < BOARD_SIZE:
-                neighbors |= 1 << (nr * BOARD_SIZE + nc)
+    neighbors = ((mask & ~LEFT_EDGE) >> 1) | ((mask & ~RIGHT_EDGE) << 1)
+    neighbors |= (mask >> BOARD_SIZE) | ((mask << BOARD_SIZE) & BOARD_MASK)
     return neighbors & ~mask
 
 
 def _blank_stats(occupied_mask: int) -> tuple[int, int, int]:
-    board_mask = (1 << (BOARD_SIZE * BOARD_SIZE)) - 1
-    empty = board_mask & ~occupied_mask
+    empty = BOARD_MASK & ~occupied_mask
     component_sizes = []
     remaining = empty
     while remaining:
@@ -232,8 +222,17 @@ def solve(config: Any, max_nodes: int = MAX_SEARCH_NODES) -> dict:
     preferred_groups = [index for index, group in enumerate(groups) if group["preferMore"]]
     preferred_order = {group_index: order for order, group_index in enumerate(preferred_groups)}
     types = []
+    type_by_shape = {}
     for group_index, group in enumerate(groups):
         for piece in group["pieces"]:
+            if not piece["stock"]:
+                continue
+            placements = _placements(piece["shape"])
+            key = (group_index, tuple(placement.mask for placement in placements))
+            if key in type_by_shape:
+                types[type_by_shape[key]]["stock"] += piece["stock"]
+                continue
+            type_by_shape[key] = len(types)
             types.append({
                 "groupIndex": group_index,
                 "groupName": group["name"],
@@ -242,7 +241,7 @@ def solve(config: Any, max_nodes: int = MAX_SEARCH_NODES) -> dict:
                 "stock": piece["stock"],
                 "area": len(piece["shape"]),
                 "color": group["color"],
-                "placements": _placements(piece["shape"]),
+                "placements": placements,
             })
     type_indices_by_group = [[] for _ in groups]
     for type_index, piece_type in enumerate(types):
@@ -266,7 +265,6 @@ def solve(config: Any, max_nodes: int = MAX_SEARCH_NODES) -> dict:
     best_solution = None
     nodes = 0
     stopped = False
-    board_mask = (1 << (BOARD_SIZE * BOARD_SIZE)) - 1
     main_candidates = []
     seen_main_masks = set()
     for main in main_pieces:
@@ -276,7 +274,7 @@ def solve(config: Any, max_nodes: int = MAX_SEARCH_NODES) -> dict:
             if placement.mask in seen_main_masks:
                 continue
             seen_main_masks.add(placement.mask)
-            border_mask = _neighbor_mask(placement.mask) & board_mask
+            border_mask = _neighbor_mask(placement.mask)
             if border_mask.bit_count() < minimum_required_count:
                 continue
             if BOARD_SIZE * BOARD_SIZE - len(main["shape"]) < minimum_required_area:
@@ -423,6 +421,7 @@ def solve(config: Any, max_nodes: int = MAX_SEARCH_NODES) -> dict:
         if not border_mask:
             continue
         candidate_maps = []
+        anchor_counts = {}
         for piece_type in types:
             by_anchor = {}
             for placement in piece_type["placements"]:
@@ -436,7 +435,15 @@ def solve(config: Any, max_nodes: int = MAX_SEARCH_NODES) -> dict:
                     bit = bits & -bits
                     bits ^= bit
                     by_anchor.setdefault(bit, []).append((placement, border_cells))
+                    anchor_counts[bit] = anchor_counts.get(bit, 0) + 1
             candidate_maps.append(by_anchor)
+        anchor_order = []
+        bits = border_mask
+        while bits:
+            bit = bits & -bits
+            bits ^= bit
+            anchor_order.append(bit)
+        anchor_order.sort(key=lambda bit: (anchor_counts.get(bit, 0), bit))
 
         counts = [0] * len(groups)
         remaining_stock = [piece_type["stock"] for piece_type in types]
@@ -524,7 +531,7 @@ def solve(config: Any, max_nodes: int = MAX_SEARCH_NODES) -> dict:
             if not unprocessed:
                 return
 
-            anchor = unprocessed & -unprocessed
+            anchor = next(bit for bit in anchor_order if bit & unprocessed)
             options = []
             for type_index, piece_type in enumerate(types):
                 group_index = piece_type["groupIndex"]
