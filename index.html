@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>6×6 板塊排列搜尋器</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">BLOCK LAYOUT SEARCH</p>
+      <h1>6×6 板塊排列搜尋器</h1>
+      <p class="subtitle">設定主板塊、次板塊與數量規則，搜尋合規排列。</p>
+    </div>
+    <button class="button button-quiet" id="load-example" type="button">載入範例</button>
+  </header>
+
+  <main class="layout">
+    <section class="panel editor-panel" aria-labelledby="setup-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">PUZZLE SETUP</p>
+          <h2 id="setup-title">板塊設定</h2>
+        </div>
+        <span class="badge">6×6 固定棋盤</span>
+      </div>
+
+      <div class="notice">
+        <strong>搜尋優先順序</strong>
+        <span>先滿足最少／最多規則與「越多越好」；再最大化空格；最後偏好空格連通。</span>
+        <small>多組都設「越多越好」時，依下方次板塊組順序優先。</small>
+      </div>
+
+      <section class="setup-section" aria-labelledby="main-pieces-title">
+        <div class="subsection-heading">
+          <div>
+            <h3 id="main-pieces-title">主板塊</h3>
+            <p>搜尋時恰選一個主板塊。庫存代表此形狀可選數量。</p>
+          </div>
+          <button class="button button-small" id="add-main" type="button">＋ 新增主板塊</button>
+        </div>
+        <div id="main-pieces" class="cards"></div>
+      </section>
+
+      <section class="setup-section" aria-labelledby="groups-title">
+        <div class="subsection-heading">
+          <div>
+            <h3 id="groups-title">次板塊組</h3>
+            <p>每組設定數量規則與形狀庫存；次板塊須直接貼著主板塊。</p>
+          </div>
+          <button class="button button-small" id="add-group" type="button">＋ 新增次板塊組</button>
+        </div>
+        <div id="groups" class="cards"></div>
+      </section>
+
+      <div class="editor-footer">
+        <div id="form-error" class="form-error" role="alert" aria-live="polite"></div>
+        <button class="button button-primary button-solve" id="solve" type="button">
+          <span class="button-icon">⌕</span> 搜尋最佳排列
+        </button>
+      </div>
+    </section>
+
+    <section class="panel result-panel" aria-labelledby="result-title">
+      <div class="section-heading result-heading">
+        <div>
+          <p class="eyebrow">SEARCH RESULT</p>
+          <h2 id="result-title">排列結果</h2>
+        </div>
+        <span id="result-status" class="status-pill status-idle">尚未搜尋</span>
+      </div>
+      <p id="result-message" class="result-message">棋盤目前空白。載入範例或建立板塊規則後開始搜尋。</p>
+
+      <div class="board-wrap">
+        <div class="board-axis board-axis-corner"></div>
+        <div class="board-axis board-axis-col">1</div>
+        <div class="board-axis board-axis-col">2</div>
+        <div class="board-axis board-axis-col">3</div>
+        <div class="board-axis board-axis-col">4</div>
+        <div class="board-axis board-axis-col">5</div>
+        <div class="board-axis board-axis-col">6</div>
+        <div class="board-axis board-axis-row">1</div><div class="board-cell" data-cell="0"></div><div class="board-cell" data-cell="1"></div><div class="board-cell" data-cell="2"></div><div class="board-cell" data-cell="3"></div><div class="board-cell" data-cell="4"></div><div class="board-cell" data-cell="5"></div>
+        <div class="board-axis board-axis-row">2</div><div class="board-cell" data-cell="6"></div><div class="board-cell" data-cell="7"></div><div class="board-cell" data-cell="8"></div><div class="board-cell" data-cell="9"></div><div class="board-cell" data-cell="10"></div><div class="board-cell" data-cell="11"></div>
+        <div class="board-axis board-axis-row">3</div><div class="board-cell" data-cell="12"></div><div class="board-cell" data-cell="13"></div><div class="board-cell" data-cell="14"></div><div class="board-cell" data-cell="15"></div><div class="board-cell" data-cell="16"></div><div class="board-cell" data-cell="17"></div>
+        <div class="board-axis board-axis-row">4</div><div class="board-cell" data-cell="18"></div><div class="board-cell" data-cell="19"></div><div class="board-cell" data-cell="20"></div><div class="board-cell" data-cell="21"></div><div class="board-cell" data-cell="22"></div><div class="board-cell" data-cell="23"></div>
+        <div class="board-axis board-axis-row">5</div><div class="board-cell" data-cell="24"></div><div class="board-cell" data-cell="25"></div><div class="board-cell" data-cell="26"></div><div class="board-cell" data-cell="27"></div><div class="board-cell" data-cell="28"></div><div class="board-cell" data-cell="29"></div>
+        <div class="board-axis board-axis-row">6</div><div class="board-cell" data-cell="30"></div><div class="board-cell" data-cell="31"></div><div class="board-cell" data-cell="32"></div><div class="board-cell" data-cell="33"></div><div class="board-cell" data-cell="34"></div><div class="board-cell" data-cell="35"></div>
+      </div>
+
+      <div id="summary" class="summary-grid" hidden></div>
+      <div id="legend" class="legend"></div>
+      <div id="placement-list" class="placement-list"></div>
+      <p id="search-meta" class="search-meta"></p>
+    </section>
+  </main>
+
+  <footer class="page-footer">
+    <span>旋轉限 90° 倍數；不允許翻轉、重疊。每個次板塊至少一格邊與主板塊相鄰。</span>
+  </footer>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>
