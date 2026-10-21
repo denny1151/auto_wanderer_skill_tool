@@ -1,5 +1,5 @@
 const $ = (selector) => document.querySelector(selector);
-const COLORS = ["#d95f59", "#4b8ccB", "#54a878", "#9366bd", "#e2a43a", "#3eaaa6"];
+const COLORS = ["#d95f59", "#4b8ccb", "#54a878", "#9366bd", "#e2a43a", "#3eaaa6"];
 let config = { mainPieces: [], groups: [] };
 let groupSequence = 0;
 let pyodidePromise;
@@ -17,11 +17,14 @@ async function loadBrowserSolver() {
         });
       }
       const runtime = await window.loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.27.7/full/" });
-      const response = await fetch("./solver.py");
+      const response = await fetch("./solver.py?v=dark-graph-json-2");
       if (!response.ok) throw new Error("無法載入排列搜尋程式。");
       await runtime.runPythonAsync(await response.text());
       return runtime;
-    })();
+    })().catch((error) => {
+      pyodidePromise = null;
+      throw error;
+    });
   }
   return pyodidePromise;
 }
@@ -30,50 +33,70 @@ function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 }
 
-function mainCard(piece, index) {
-  return `<article class="card"><div class="card-title"><strong>主板塊 ${index + 1}</strong><button class="button button-danger button-small" data-remove-main="${index}" type="button">刪除</button></div><label>名稱<input data-main="${index}" data-field="name" value="${escapeHtml(piece.name)}"></label><label>庫存<input data-main="${index}" data-field="stock" type="number" min="0" value="${piece.stock}"></label><label>形狀（# 為板塊，. 為空）<textarea data-main="${index}" data-field="shape" spellcheck="false">${escapeHtml(piece.shape)}</textarea></label></article>`;
+function shapeMatrix(shape) {
+  const rows = Array.isArray(shape) ? shape : String(shape || "").split(/\r?\n/);
+  const matrix = Array.from({ length: 6 }, () => Array(6).fill(false));
+  rows.slice(0, 6).forEach((line, row) => {
+    [...String(line).replace(/\s/g, "")].slice(0, 6).forEach((cell, col) => {
+      matrix[row][col] = cell === "#";
+    });
+  });
+  return matrix;
 }
 
-function variantCard(groupIndex, piece, pieceIndex) {
-  return `<div class="variant-card"><div class="card-title"><strong>形狀 ${pieceIndex + 1}</strong><button class="button button-danger button-small" data-remove-variant="${groupIndex}:${pieceIndex}" type="button">刪除</button></div><label>名稱<input data-group="${groupIndex}" data-piece="${pieceIndex}" data-field="name" value="${escapeHtml(piece.name)}"></label><label>庫存<input data-group="${groupIndex}" data-piece="${pieceIndex}" data-field="stock" type="number" min="0" value="${piece.stock}"></label><label>形狀<textarea data-group="${groupIndex}" data-piece="${pieceIndex}" data-field="shape" spellcheck="false">${escapeHtml(piece.shape)}</textarea></label></div>`;
+function shapeText(matrix) {
+  const filled = [];
+  matrix.forEach((row, r) => row.forEach((value, c) => { if (value) filled.push([r, c]); }));
+  if (!filled.length) return "";
+  const minRow = Math.min(...filled.map(([r]) => r));
+  const maxRow = Math.max(...filled.map(([r]) => r));
+  const minCol = Math.min(...filled.map(([, c]) => c));
+  const maxCol = Math.max(...filled.map(([, c]) => c));
+  return matrix.slice(minRow, maxRow + 1).map((row) => row.slice(minCol, maxCol + 1).map((cell) => cell ? "#" : ".").join("")).join("\n");
+}
+
+function shapeEditor(shape, owner, index, pieceIndex = null, color = "#8c98a8") {
+  const matrix = shapeMatrix(shape);
+  const ownerAttributes = pieceIndex === null
+    ? `data-main="${index}"`
+    : `data-group="${index}" data-piece="${pieceIndex}"`;
+  const cells = matrix.flatMap((row, r) => row.map((filled, c) =>
+    `<button class="shape-cell${filled ? " is-filled" : ""}" style="--shape-color:${color}" data-shape-owner="${owner}" ${ownerAttributes} data-shape-cell="${r * 6 + c}" type="button" aria-label="第 ${r + 1} 列第 ${c + 1} 格${filled ? "，已選取" : "，空格"}" aria-pressed="${filled}"></button>`
+  )).join("");
+  return `<div class="shape-editor" role="group" aria-label="技能形狀編輯器">${cells}</div><small class="shape-hint">點擊格子切換形狀；最多 6×6 格</small>`;
+}
+
+function mainCard(piece, index) {
+  return `<article class="card"><div class="card-title"><strong>主動技能 ${index + 1}</strong><button class="button button-danger button-small" data-remove-main="${index}" type="button">刪除</button></div><div class="field-row"><label>名稱<input data-main="${index}" data-field="name" value="${escapeHtml(piece.name)}"></label><label>可用數量<input data-main="${index}" data-field="stock" type="number" min="0" value="${piece.stock}"></label></div><div class="shape-field"><span>技能形狀</span>${shapeEditor(piece.shape, "main", index, null, "#f1a977")}</div></article>`;
+}
+
+function variantCard(groupIndex, piece, pieceIndex, color) {
+  return `<div class="variant-card"><div class="card-title"><strong>技能形狀 ${pieceIndex + 1}</strong><button class="button button-danger button-small" data-remove-variant="${groupIndex}:${pieceIndex}" type="button">刪除</button></div><div class="field-row"><label>名稱<input data-group="${groupIndex}" data-piece="${pieceIndex}" data-field="name" value="${escapeHtml(piece.name)}"></label><label>可用數量<input data-group="${groupIndex}" data-piece="${pieceIndex}" data-field="stock" type="number" min="0" value="${piece.stock}"></label></div><div class="shape-field"><span>技能形狀</span>${shapeEditor(piece.shape, "variant", groupIndex, pieceIndex, color)}</div></div>`;
 }
 
 function groupCard(group, index) {
-  const variants = group.pieces.map((piece, pieceIndex) => variantCard(index, piece, pieceIndex)).join("");
-  return `<article class="card group-card" style="--group-color:${escapeHtml(group.color)}"><div class="card-title"><strong><span class="color-dot"></span>次板塊組 ${index + 1}</strong><div><button class="button button-small" data-move-group="${index}:up" type="button" aria-label="提高規則優先順序">↑</button> <button class="button button-small" data-move-group="${index}:down" type="button" aria-label="降低規則優先順序">↓</button> <button class="button button-danger button-small" data-remove-group="${index}" type="button">刪除</button></div></div><div class="field-row"><label>名稱<input data-group="${index}" data-field="name" value="${escapeHtml(group.name)}"></label><label>顏色<input data-group="${index}" data-field="color" type="color" value="${escapeHtml(group.color)}"></label></div><div class="field-row"><label>最少選<input data-group="${index}" data-field="min" type="number" min="0" value="${group.min}"></label><label>最多選<input data-group="${index}" data-field="max" type="number" min="0" value="${group.max}"></label></div><label class="check-label"><input data-group="${index}" data-field="preferMore" type="checkbox" ${group.preferMore ? "checked" : ""}> 越多越好（依次板塊組順序比較）</label><div class="variant-list">${variants}</div><button class="button button-small" data-add-variant="${index}" type="button">＋ 新增形狀</button></article>`;
+  const color = /^#[0-9a-fA-F]{6}$/.test(group.color) ? group.color : COLORS[index % COLORS.length];
+  const variants = group.pieces.map((piece, pieceIndex) => variantCard(index, piece, pieceIndex, color)).join("");
+  return `<article class="card group-card" style="--group-color:${color}"><div class="card-title"><strong><span class="color-dot"></span>輔助技能組 ${index + 1}</strong><div class="group-actions"><button class="button button-small" data-move-group="${index}:up" type="button" aria-label="提高規則優先順序">↑</button><button class="button button-small" data-move-group="${index}:down" type="button" aria-label="降低規則優先順序">↓</button><button class="button button-danger button-small" data-remove-group="${index}" type="button">刪除</button></div></div><div class="field-row"><label>組別名稱<input data-group="${index}" data-field="name" value="${escapeHtml(group.name)}"></label><label>顯示顏色<input data-group="${index}" data-field="color" type="color" value="${color}"></label></div><div class="field-row"><label>最少選擇<input data-group="${index}" data-field="min" type="number" min="0" value="${group.min}"></label><label>最多選擇<input data-group="${index}" data-field="max" type="number" min="0" value="${group.max}"></label></div><label class="check-label"><input data-group="${index}" data-field="preferMore" type="checkbox" ${group.preferMore ? "checked" : ""}> 越多越好（依組別順序優先）</label><div class="variant-list">${variants}</div><button class="button button-small" data-add-variant="${index}" type="button">＋ 新增輔助技能形狀</button></article>`;
 }
 
 function renderEditor() {
-  $("#main-pieces").innerHTML = config.mainPieces.map(mainCard).join("") || `<p class="empty-hint">尚無主板塊，請新增至少一種。</p>`;
-  $("#groups").innerHTML = config.groups.map(groupCard).join("") || `<p class="empty-hint">尚無次板塊組，請新增至少一組。</p>`;
-}
-
-function sampleConfig() {
-  return {
-    mainPieces: [
-      { name: "主板塊 A", stock: 1, shape: "#.\n#.\n##\n#." },
-      { name: "主板塊 B", stock: 1, shape: "##\n##" },
-    ],
-    groups: [
-      { name: "紅色次板塊", color: "#d95f59", min: 1, max: 1, preferMore: false, pieces: [{ name: "直線 2 格", stock: 3, shape: "##" }] },
-      { name: "藍色次板塊", color: "#4b8ccb", min: 2, max: 3, preferMore: false, pieces: [{ name: "直線 2 格", stock: 4, shape: "##" }] },
-      { name: "綠色次板塊", color: "#54a878", min: 1, max: 1, preferMore: false, pieces: [{ name: "L 形", stock: 1, shape: "##\n.#" }] },
-      { name: "紫色次板塊", color: "#9366bd", min: 4, max: 7, preferMore: true, pieces: [{ name: "單格", stock: 6, shape: "#" }, { name: "直線 2 格", stock: 1, shape: "#\n#" }] },
-    ],
-  };
+  $("#main-pieces").innerHTML = config.mainPieces.map(mainCard).join("") || `<p class="empty-hint">尚無主動技能，請新增至少一種。</p>`;
+  $("#groups").innerHTML = config.groups.map(groupCard).join("") || `<p class="empty-hint">尚無輔助技能組，請新增至少一組。</p>`;
 }
 
 function readForm() {
-  document.querySelectorAll("[data-main]").forEach((input) => {
+  document.querySelectorAll("[data-main][data-field]").forEach((input) => {
     const piece = config.mainPieces[Number(input.dataset.main)];
-    piece[input.dataset.field] = input.dataset.field === "stock" ? Number(input.value) : input.value;
+    if (piece) piece[input.dataset.field] = input.dataset.field === "stock" ? Number(input.value) : input.value;
   });
-  document.querySelectorAll("[data-group]").forEach((input) => {
+  document.querySelectorAll("[data-group][data-field]").forEach((input) => {
     const group = config.groups[Number(input.dataset.group)];
+    if (!group) return;
     const field = input.dataset.field;
     if (input.dataset.piece !== undefined) {
       const piece = group.pieces[Number(input.dataset.piece)];
-      piece[field] = field === "stock" ? Number(input.value) : input.value;
+      if (piece) piece[field] = field === "stock" ? Number(input.value) : input.value;
     } else if (field === "min" || field === "max") group[field] = Number(input.value);
     else if (field === "preferMore") group[field] = input.checked;
     else group[field] = input.value;
@@ -82,25 +105,42 @@ function readForm() {
 
 function addGroup() {
   const index = groupSequence++;
-  config.groups.push({ name: `次板塊 ${index + 1}`, color: COLORS[index % COLORS.length], min: 0, max: 0, preferMore: false, pieces: [{ name: "形狀 1", stock: 1, shape: "##" }] });
+  config.groups.push({ name: `輔助技能組 ${index + 1}`, color: COLORS[index % COLORS.length], min: 0, max: 1, preferMore: false, pieces: [{ name: "新輔助技能", stock: 1, shape: "#" }] });
+}
+
+function updateShape(button) {
+  readForm();
+  const cell = Number(button.dataset.shapeCell);
+  const row = Math.floor(cell / 6), col = cell % 6;
+  let target;
+  if (button.dataset.shapeOwner === "main") target = config.mainPieces[Number(button.dataset.main)];
+  else target = config.groups[Number(button.dataset.group)].pieces[Number(button.dataset.piece)];
+  const matrix = shapeMatrix(target.shape);
+  matrix[row][col] = !matrix[row][col];
+  target.shape = shapeText(matrix);
+  renderEditor();
 }
 
 $("#main-pieces").addEventListener("input", readForm);
 $("#groups").addEventListener("input", readForm);
-$("#add-main").addEventListener("click", () => { readForm(); config.mainPieces.push({ name: `主板塊 ${config.mainPieces.length + 1}`, stock: 1, shape: "##\n##" }); renderEditor(); });
+$("#add-main").addEventListener("click", () => {
+  readForm();
+  config.mainPieces.push({ name: `主動技能 ${config.mainPieces.length + 1}`, stock: 1, shape: "#" });
+  renderEditor();
+});
 $("#add-group").addEventListener("click", () => { readForm(); addGroup(); renderEditor(); });
-$("#load-example").addEventListener("click", () => { config = sampleConfig(); groupSequence = config.groups.length; renderEditor(); clearResult(); });
 
 document.addEventListener("click", (event) => {
   const button = event.target.closest("button");
   if (!button) return;
+  if (button.dataset.shapeCell !== undefined) { updateShape(button); return; }
   readForm();
   if (button.dataset.removeMain !== undefined) config.mainPieces.splice(Number(button.dataset.removeMain), 1);
   else if (button.dataset.removeGroup !== undefined) config.groups.splice(Number(button.dataset.removeGroup), 1);
   else if (button.dataset.removeVariant) {
     const [groupIndex, pieceIndex] = button.dataset.removeVariant.split(":").map(Number);
     config.groups[groupIndex].pieces.splice(pieceIndex, 1);
-  } else if (button.dataset.addVariant !== undefined) config.groups[Number(button.dataset.addVariant)].pieces.push({ name: "新形狀", stock: 1, shape: "##" });
+  } else if (button.dataset.addVariant !== undefined) config.groups[Number(button.dataset.addVariant)].pieces.push({ name: "新輔助技能", stock: 1, shape: "#" });
   else if (button.dataset.moveGroup) {
     const [indexText, direction] = button.dataset.moveGroup.split(":");
     const index = Number(indexText), next = index + (direction === "up" ? -1 : 1);
@@ -115,7 +155,7 @@ function clearResult() {
   $("#legend").replaceChildren();
   $("#placement-list").replaceChildren();
   $("#search-meta").textContent = "";
-  $("#result-message").textContent = "棋盤目前空白。載入範例或建立板塊規則後開始搜尋。";
+  $("#result-message").textContent = "棋盤目前空白。新增技能與規則後開始搜尋。";
   $("#result-status").textContent = "尚未搜尋";
   $("#result-status").className = "status-pill status-idle";
 }
@@ -142,8 +182,47 @@ function showResult(data) {
   $("#summary").innerHTML = `<div><strong>${solution.emptyCells}</strong><small>剩餘空格</small></div><div><strong>${solution.largestEmptyComponent}</strong><small>最大相連空格</small></div><div><strong>${solution.emptyComponents}</strong><small>空格區塊數</small></div><div class="summary-counts">${counts}</div>`;
   $("#summary").hidden = false;
   $("#placement-list").innerHTML = solution.placements.map((placement) => `<div class="placement-item"><span class="placement-swatch" style="background:${escapeHtml(placement.color)}"></span><span><strong>${escapeHtml(placement.group)}／${escapeHtml(placement.pieceName)}</strong><small>${placement.cells.length} 格：${placement.cells.map(([r, c]) => `(${r},${c})`).join(" ")}</small></span></div>`).join("");
-  $("#search-meta").textContent = `搜尋節點：${data.nodes.toLocaleString()}${data.status === "partial" ? "（節點上限時已找到解）" : ""}`;
+  $("#search-meta").textContent = `搜尋節點：${data.nodes.toLocaleString()}${data.status === "partial" ? "（節點上限時已找到暫定排列）" : ""}`;
 }
+
+function downloadConfig() {
+  readForm();
+  const contents = JSON.stringify({ version: 1, ...config }, null, 2);
+  const url = URL.createObjectURL(new Blob([contents], { type: "application/json;charset=utf-8" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `技能設定-${new Date().toISOString().slice(0, 10)}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function importConfig(data) {
+  if (!data || !Array.isArray(data.mainPieces) || !Array.isArray(data.groups)) throw new Error("JSON 格式不符；需要 mainPieces 與 groups。" );
+  data.mainPieces.forEach((piece) => { if (typeof piece.shape !== "string" && !Array.isArray(piece.shape)) throw new Error("主動技能缺少有效形狀。"); });
+  data.groups.forEach((group) => {
+    if (!Array.isArray(group.pieces)) throw new Error("輔助技能組缺少形狀清單。");
+    group.pieces.forEach((piece) => { if (typeof piece.shape !== "string" && !Array.isArray(piece.shape)) throw new Error("輔助技能缺少有效形狀。"); });
+  });
+  config = {
+    mainPieces: data.mainPieces.map((piece) => ({ ...piece, shape: Array.isArray(piece.shape) ? piece.shape.join("\n") : piece.shape })),
+    groups: data.groups.map((group, index) => ({ ...group, color: /^#[0-9a-fA-F]{6}$/.test(group.color) ? group.color : COLORS[index % COLORS.length], pieces: group.pieces.map((piece) => ({ ...piece, shape: Array.isArray(piece.shape) ? piece.shape.join("\n") : piece.shape })) })),
+  };
+  groupSequence = config.groups.length;
+  renderEditor();
+  clearResult();
+}
+
+$("#export-config").addEventListener("click", downloadConfig);
+$("#import-config").addEventListener("click", () => $("#config-file").click());
+$("#config-file").addEventListener("change", async (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+  try {
+    importConfig(JSON.parse(await file.text()));
+    $("#form-error").textContent = "設定已匯入。";
+  } catch (error) { $("#form-error").textContent = error.message || "無法匯入 JSON。"; }
+  event.target.value = "";
+});
 
 $("#solve").addEventListener("click", async () => {
   readForm();
@@ -160,6 +239,4 @@ $("#solve").addEventListener("click", async () => {
   finally { button.disabled = false; button.innerHTML = '<span class="button-icon">⌕</span> 搜尋最佳排列'; }
 });
 
-config = sampleConfig();
-groupSequence = config.groups.length;
 renderEditor();

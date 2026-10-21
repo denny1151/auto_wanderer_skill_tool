@@ -3,18 +3,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light">
-  <title>6×6 板塊排列搜尋器</title>
-  <link rel="stylesheet" href="./styles.css">
+  <meta name="color-scheme" content="dark">
+  <title>6×6 技能排列搜尋器</title>
+  <link rel="stylesheet" href="./styles.css?v=dark-graph-json-2">
 </head>
 <body>
   <header class="topbar">
     <div>
-      <p class="eyebrow">BLOCK LAYOUT SEARCH</p>
-      <h1>6×6 板塊排列搜尋器</h1>
-      <p class="subtitle">設定主板塊、次板塊與數量規則，搜尋合規排列。</p>
+      <p class="eyebrow">SKILL LAYOUT SEARCH</p>
+      <h1>6×6 技能排列搜尋器</h1>
+      <p class="subtitle">設定主動技能、輔助技能與數量規則，搜尋合規排列。</p>
     </div>
-    <button class="button button-quiet" id="load-example" type="button">載入範例</button>
+    <div class="toolbar-actions">
+      <button class="button button-quiet" id="import-config" type="button">匯入 JSON</button>
+      <button class="button button-quiet" id="export-config" type="button">匯出 JSON</button>
+      <input id="config-file" type="file" accept="application/json,.json" hidden>
+    </div>
   </header>
 
   <main class="layout">
@@ -22,7 +26,7 @@
       <div class="section-heading">
         <div>
           <p class="eyebrow">PUZZLE SETUP</p>
-          <h2 id="setup-title">板塊設定</h2>
+          <h2 id="setup-title">技能設定</h2>
         </div>
         <span class="badge">6×6 固定棋盤</span>
       </div>
@@ -30,16 +34,16 @@
       <div class="notice">
         <strong>搜尋優先順序</strong>
         <span>先滿足最少／最多規則與「越多越好」；再最大化空格；最後偏好空格連通。</span>
-        <small>多組都設「越多越好」時，依下方次板塊組順序優先。</small>
+        <small>多組都設「越多越好」時，依下方輔助技能組順序優先。</small>
       </div>
 
       <section class="setup-section" aria-labelledby="main-pieces-title">
         <div class="subsection-heading">
           <div>
-            <h3 id="main-pieces-title">主板塊</h3>
-            <p>搜尋時恰選一個主板塊。庫存代表此形狀可選數量。</p>
+            <h3 id="main-pieces-title">主動技能</h3>
+            <p>搜尋時恰選一個主動技能；點擊格子編輯形狀。</p>
           </div>
-          <button class="button button-small" id="add-main" type="button">＋ 新增主板塊</button>
+          <button class="button button-small" id="add-main" type="button">＋ 新增主動技能</button>
         </div>
         <div id="main-pieces" class="cards"></div>
       </section>
@@ -47,10 +51,10 @@
       <section class="setup-section" aria-labelledby="groups-title">
         <div class="subsection-heading">
           <div>
-            <h3 id="groups-title">次板塊組</h3>
-            <p>每組設定數量規則與形狀庫存；次板塊須直接貼著主板塊。</p>
+            <h3 id="groups-title">輔助技能組</h3>
+            <p>每組設定數量規則與形狀庫存；輔助技能須與主動技能共邊相連。</p>
           </div>
-          <button class="button button-small" id="add-group" type="button">＋ 新增次板塊組</button>
+          <button class="button button-small" id="add-group" type="button">＋ 新增輔助技能組</button>
         </div>
         <div id="groups" class="cards"></div>
       </section>
@@ -71,7 +75,7 @@
         </div>
         <span id="result-status" class="status-pill status-idle">尚未搜尋</span>
       </div>
-      <p id="result-message" class="result-message">棋盤目前空白。載入範例或建立板塊規則後開始搜尋。</p>
+      <p id="result-message" class="result-message">棋盤目前空白。新增技能與規則後開始搜尋。</p>
 
       <div class="board-wrap">
         <div class="board-axis board-axis-corner"></div>
@@ -97,9 +101,9 @@
   </main>
 
   <footer class="page-footer">
-    <span>旋轉限 90° 倍數；不允許翻轉、重疊。每個次板塊至少一格邊與主板塊相鄰。</span>
+    <span>技能可旋轉 90° 倍數，不可翻轉或重疊。每個輔助技能至少一格與主動技能共邊。</span>
   </footer>
 
-  <script src="./app.js?v=pages-3" defer></script>
+  <script src="./app.js?v=dark-graph-json-2" defer></script>
 </body>
 </html>

@@ -85,7 +85,7 @@ class AppHandler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="6×6 板塊排列搜尋器")
+    parser = argparse.ArgumentParser(description="6×6 技能排列搜尋器")
     parser.add_argument("--host", default="127.0.0.1", help="監聽位置，預設只允許本機連線")
     parser.add_argument("--port", type=int, default=8000, help="連接埠，預設 8000")
     parser.add_argument("--no-browser", action="store_true", help="啟動後不自動開啟瀏覽器")
@@ -93,7 +93,7 @@ def main() -> None:
     address = f"http://{args.host}:{args.port}/"
 
     server = ThreadingHTTPServer((args.host, args.port), AppHandler)
-    print(f"板塊排列工具已啟動：{address}")
+    print(f"技能排列工具已啟動：{address}")
     print("按 Ctrl+C 停止。")
     if not args.no_browser:
         webbrowser.open(address)

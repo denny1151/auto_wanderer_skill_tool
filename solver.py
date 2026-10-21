@@ -53,9 +53,9 @@ def _parse_shape(value: Any, label: str) -> tuple[tuple[int, int], ...]:
                 seen.add(neighbor)
                 stack.append(neighbor)
     if len(seen) != len(cells):
-        raise PuzzleInputError(f"{label}：板塊格子必須上下左右相連。")
+        raise PuzzleInputError(f"{label}：技能格必須上下左右相連。")
     if len(cells) > BOARD_SIZE * BOARD_SIZE:
-        raise PuzzleInputError(f"{label}：板塊超過棋盤 36 格。")
+        raise PuzzleInputError(f"{label}：技能形狀超過棋盤 36 格。")
     return _normalize(cells)
 
 
@@ -138,28 +138,28 @@ def _validate_config(config: Any) -> tuple[list[dict], list[dict]]:
     main_rows = config.get("mainPieces")
     groups = config.get("groups")
     if not isinstance(main_rows, list) or not main_rows:
-        raise PuzzleInputError("至少建立一種主板塊。")
+        raise PuzzleInputError("至少建立一種主動技能。")
     if not isinstance(groups, list) or not groups:
-        raise PuzzleInputError("至少建立一組次板塊。")
+        raise PuzzleInputError("至少建立一組輔助技能。")
     if len(main_rows) > 30 or len(groups) > 12:
-        raise PuzzleInputError("主板塊最多 30 種，次板塊最多 12 組。")
+        raise PuzzleInputError("主動技能最多 30 種，輔助技能最多 12 組。")
 
     main_pieces = []
     for index, item in enumerate(main_rows, 1):
         if not isinstance(item, dict):
-            raise PuzzleInputError(f"主板塊 {index} 設定格式錯誤。")
-        name = str(item.get("name") or f"主板塊 {index}").strip()
+            raise PuzzleInputError(f"主動技能 {index} 設定格式錯誤。")
+        name = str(item.get("name") or f"主動技能 {index}").strip()
         stock = _positive_int(item.get("stock", 1), f"{name} 數量", allow_zero=True)
         shape = _parse_shape(item.get("shape"), name)
         main_pieces.append({"name": name, "stock": stock, "shape": shape})
     if not any(piece["stock"] for piece in main_pieces):
-        raise PuzzleInputError("至少一種主板塊的可用數量要大於 0。")
+        raise PuzzleInputError("至少一種主動技能的可用數量要大於 0。")
 
     normalized_groups = []
     for group_index, group in enumerate(groups, 1):
         if not isinstance(group, dict):
-            raise PuzzleInputError(f"次板塊第 {group_index} 組設定格式錯誤。")
-        name = str(group.get("name") or f"次板塊 {group_index}").strip()
+            raise PuzzleInputError(f"輔助技能第 {group_index} 組設定格式錯誤。")
+        name = str(group.get("name") or f"輔助技能 {group_index}").strip()
         pieces = group.get("pieces")
         if not isinstance(pieces, list) or not pieces:
             raise PuzzleInputError(f"{name}：至少建立一種形狀。")
@@ -257,7 +257,7 @@ def solve(config: Any, max_nodes: int = MAX_SEARCH_NODES) -> dict:
             return
         placements = [{
             "kind": "main",
-            "group": "主板塊",
+            "group": "主動技能",
             "pieceName": main["name"],
             "color": MAIN_COLOR,
             "cells": [[row + 1, col + 1] for row, col in main_placement.cells],
@@ -403,7 +403,7 @@ def solve(config: Any, max_nodes: int = MAX_SEARCH_NODES) -> dict:
         return {
             "status": "infeasible",
             "nodes": nodes,
-            "message": "目前主板塊、次板塊庫存與規則無法同時放進 6×6 棋盤。可降低最低數量、增加庫存或調整形狀。",
+            "message": "目前主動技能、輔助技能庫存與規則無法同時放進 6×6 棋盤。可降低最低數量、增加庫存或調整形狀。",
         }
 
     return {
