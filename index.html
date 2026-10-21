@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
   <title>6×6 技能排列搜尋器</title>
-  <link rel="stylesheet" href="./styles.css?v=skill-fold-2">
+  <link rel="stylesheet" href="./styles.css?v=skill-groups-modal-1">
 </head>
 <body>
   <header class="topbar">
@@ -41,11 +41,11 @@
         <div class="subsection-heading">
           <div>
             <h3 id="main-pieces-title">主動技能</h3>
-            <p>搜尋時恰選一個主動技能；點擊格子編輯形狀。</p>
+            <p>主動技能可分組；每次只計算選中的一組。</p>
           </div>
         </div>
-        <div id="main-pieces" class="cards"></div>
-        <button class="button button-small add-below" id="add-main" type="button">＋ 新增主動技能</button>
+        <div id="main-groups" class="cards"></div>
+        <button class="button button-small add-below" id="add-main-group" type="button">＋ 新增主動技能組</button>
       </section>
 
       <section class="setup-section" aria-labelledby="groups-title">
@@ -108,6 +108,15 @@
     <span>技能可旋轉 90° 倍數，不可翻轉或重疊。每個輔助技能至少一格與主動技能共邊。</span>
   </footer>
 
-  <script src="./app.js?v=search-prune-3" defer></script>
+  <dialog id="search-modal" class="search-modal" aria-labelledby="search-modal-title">
+    <div class="search-modal-content">
+      <p class="eyebrow">SEARCH COMPLETE</p>
+      <h2 id="search-modal-title">搜尋完成</h2>
+      <p id="search-modal-message"></p>
+      <p id="search-modal-meta" class="search-meta"></p>
+      <form method="dialog"><button class="button button-primary" type="submit">知道了</button></form>
+    </div>
+  </dialog>
+  <script src="./app.js?v=skill-groups-modal-1" defer></script>
 </body>
 </html>

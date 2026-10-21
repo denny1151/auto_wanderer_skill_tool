@@ -135,7 +135,19 @@ def _count(mask: int) -> int:
 def _validate_config(config: Any) -> tuple[list[dict], list[dict]]:
     if not isinstance(config, dict):
         raise PuzzleInputError("設定格式錯誤。")
-    main_rows = config.get("mainPieces")
+    main_groups = config.get("mainGroups")
+    if isinstance(main_groups, list):
+        selected_group = config.get("selectedMainGroup", 0)
+        if isinstance(selected_group, bool) or not isinstance(selected_group, int) or not 0 <= selected_group < len(main_groups):
+            raise PuzzleInputError("所選主動技能組不存在。")
+        active_group = main_groups[selected_group]
+        if not isinstance(active_group, dict):
+            raise PuzzleInputError("主動技能組設定格式錯誤。")
+        main_rows = active_group.get("pieces")
+        main_group_name = str(active_group.get("name") or f"主動技能組 {selected_group + 1}").strip()
+    else:
+        main_rows = config.get("mainPieces")
+        main_group_name = "主動技能"
     groups = config.get("groups")
     if not isinstance(main_rows, list) or not main_rows:
         raise PuzzleInputError("至少建立一種主動技能。")
@@ -151,7 +163,7 @@ def _validate_config(config: Any) -> tuple[list[dict], list[dict]]:
         name = str(item.get("name") or f"主動技能 {index}").strip()
         stock = _positive_int(item.get("stock", 1), f"{name} 數量", allow_zero=True)
         shape = _parse_shape(item.get("shape"), name)
-        main_pieces.append({"name": name, "stock": stock, "shape": shape})
+        main_pieces.append({"name": name, "group": main_group_name, "stock": stock, "shape": shape})
     if not any(piece["stock"] for piece in main_pieces):
         raise PuzzleInputError("至少一種主動技能的可用數量要大於 0。")
 
@@ -269,7 +281,7 @@ def solve(config: Any, max_nodes: int = MAX_SEARCH_NODES) -> dict:
             return
         placements = [{
             "kind": "main",
-            "group": "主動技能",
+            "group": main["group"],
             "pieceName": main["name"],
             "color": MAIN_COLOR,
             "cells": [[row + 1, col + 1] for row, col in main_placement.cells],
@@ -279,7 +291,6 @@ def solve(config: Any, max_nodes: int = MAX_SEARCH_NODES) -> dict:
             placements.append({
                 "kind": "secondary",
                 "group": piece_type["groupName"],
-                "pieceName": piece_type["name"],
                 "color": piece_type["color"],
                 "cells": [[row + 1, col + 1] for row, col in placement.cells],
             })
