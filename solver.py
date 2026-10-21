@@ -232,6 +232,13 @@ def solve(config: Any, max_nodes: int = MAX_SEARCH_NODES) -> dict:
                 "color": group["color"],
                 "placements": _placements(piece["shape"]),
             })
+    type_indices_by_group = [[] for _ in groups]
+    for type_index, piece_type in enumerate(types):
+        type_indices_by_group[piece_type["groupIndex"]].append(type_index)
+    type_indices_by_group_by_area = [
+        sorted(indices, key=lambda index: types[index]["area"])
+        for indices in type_indices_by_group
+    ]
 
     best_score = None
     best_solution = None
@@ -239,10 +246,14 @@ def solve(config: Any, max_nodes: int = MAX_SEARCH_NODES) -> dict:
     stopped = False
     board_mask = (1 << (BOARD_SIZE * BOARD_SIZE)) - 1
     main_candidates = []
+    seen_main_masks = set()
     for main in main_pieces:
         if not main["stock"]:
             continue
         for placement in _placements(main["shape"]):
+            if placement.mask in seen_main_masks:
+                continue
+            seen_main_masks.add(placement.mask)
             main_candidates.append((main, placement))
 
     def consider(main: dict, main_placement: ShapePlacement, chosen: list[dict], occupied: int, counts: list[int]) -> None:
@@ -307,6 +318,8 @@ def solve(config: Any, max_nodes: int = MAX_SEARCH_NODES) -> dict:
 
         counts = [0] * len(groups)
         remaining_stock = [piece_type["stock"] for piece_type in types]
+        remaining_by_group = [sum(types[index]["stock"] for index in indices)
+                              for indices in type_indices_by_group]
 
         def dfs(occupied: int, covered: int, blocked: int, chosen: list[tuple[int, ShapePlacement]]) -> None:
             nonlocal nodes, stopped
@@ -320,8 +333,7 @@ def solve(config: Any, max_nodes: int = MAX_SEARCH_NODES) -> dict:
             processed = covered | blocked
             unprocessed = border_mask & ~processed
             for group_index, (minimum, maximum) in enumerate(group_limits):
-                available = sum(remaining_stock[index] for index, piece_type in enumerate(types)
-                                if piece_type["groupIndex"] == group_index)
+                available = remaining_by_group[group_index]
                 if counts[group_index] > maximum or counts[group_index] + available < minimum:
                     return
                 if counts[group_index] + min(available, _count(unprocessed)) < minimum:
@@ -330,10 +342,19 @@ def solve(config: Any, max_nodes: int = MAX_SEARCH_NODES) -> dict:
             if best_score is not None:
                 current_preferred_upper = []
                 for group_index in preferred_groups:
-                    available = sum(remaining_stock[index] for index, piece_type in enumerate(types)
-                                    if piece_type["groupIndex"] == group_index)
-                    current_preferred_upper.append(min(group_limits[group_index][1], counts[group_index] + available,
-                                                       counts[group_index] + _count(unprocessed)))
+                    free_area = 36 - _count(occupied)
+                    area_limited_count = 0
+                    for type_index in type_indices_by_group_by_area[group_index]:
+                        piece_area = types[type_index]["area"]
+                        selected = min(remaining_stock[type_index], free_area // piece_area)
+                        area_limited_count += selected
+                        free_area -= selected * piece_area
+                    current_preferred_upper.append(min(
+                        group_limits[group_index][1],
+                        counts[group_index] + remaining_by_group[group_index],
+                        counts[group_index] + _count(unprocessed),
+                        counts[group_index] + area_limited_count,
+                    ))
                 upper_tuple = tuple(current_preferred_upper)
                 if upper_tuple < best_score[0]:
                     return
@@ -347,12 +368,15 @@ def solve(config: Any, max_nodes: int = MAX_SEARCH_NODES) -> dict:
                         needed = max(0, target_count - counts[group_index])
                         if not needed:
                             continue
-                        available_areas = [piece_type["area"] for index, piece_type in enumerate(types)
-                                           if piece_type["groupIndex"] == group_index and remaining_stock[index] > 0]
-                        if not available_areas:
+                        for type_index in type_indices_by_group_by_area[group_index]:
+                            selected = min(needed, remaining_stock[type_index])
+                            required_area += selected * types[type_index]["area"]
+                            needed -= selected
+                            if not needed:
+                                break
+                        if needed:
                             impossible = True
                             break
-                        required_area += needed * min(available_areas)
                     if impossible or 36 - _count(occupied) - required_area < best_score[1]:
                         return
 
@@ -383,11 +407,13 @@ def solve(config: Any, max_nodes: int = MAX_SEARCH_NODES) -> dict:
                     return
                 group_index = types[type_index]["groupIndex"]
                 remaining_stock[type_index] -= 1
+                remaining_by_group[group_index] -= 1
                 counts[group_index] += 1
                 chosen.append((type_index, placement))
                 dfs(occupied | placement.mask, covered | border_cells, blocked, chosen)
                 chosen.pop()
                 counts[group_index] -= 1
+                remaining_by_group[group_index] += 1
                 remaining_stock[type_index] += 1
 
             if not stopped:
