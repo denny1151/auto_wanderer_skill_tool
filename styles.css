@@ -59,8 +59,8 @@ h3 { margin: 0; font-size: 16px; }
 .group-card { border-left: 4px solid var(--group-color, #7890ff); }
 .main-group-card { border-left: 4px solid #f1a977; }
 .main-group-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
-.main-group-choice { display: flex !important; align-items: center; gap: 7px !important; margin: 0 !important; }
-.main-group-choice input { accent-color: var(--accent); }
+.main-group-choice { width: max-content; display: flex !important; flex: 0 0 auto; align-items: center; gap: 7px !important; margin: 0 !important; white-space: nowrap; }
+.main-group-choice input[type="radio"] { width: 18px; min-width: 18px; height: 18px; min-height: 18px; flex: 0 0 18px; margin: 0; padding: 0; accent-color: var(--accent); }
 .group-summary { min-height: 38px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; cursor: pointer; list-style: none; }
 .group-summary::-webkit-details-marker { display: none; }
 .group-summary::before { content: "＋"; color: #9ba7b4; }
@@ -74,7 +74,7 @@ details[open] > .group-summary::before { content: "−"; }
 .group-actions { display: flex; gap: 5px; }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .card label { display: grid; gap: 5px; margin: 8px 0; color: #aeb9c6; font-size: 11px; font-weight: 700; }
-.card input:not([type="checkbox"]), .card input[type="color"] { width: 100%; min-width: 0; min-height: 36px; border: 1px solid #3b4757; border-radius: 8px; padding: 6px 9px; background: #111720; color: var(--ink); font-weight: 400; }
+.card input:not([type="checkbox"]):not([type="radio"]), .card input[type="color"] { width: 100%; min-width: 0; min-height: 36px; border: 1px solid #3b4757; border-radius: 8px; padding: 6px 9px; background: #111720; color: var(--ink); font-weight: 400; }
 .card input[type="color"] { padding: 3px; }
 .card input:focus { outline: 2px solid #7086ff; outline-offset: 1px; }
 .shape-field { margin-top: 11px; color: #aeb9c6; font-size: 11px; font-weight: 700; }
